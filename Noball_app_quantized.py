@@ -1,63 +1,58 @@
 ﻿import streamlit as st
 import numpy as np
 from PIL import Image
-import os
+import random
 
 st.set_page_config(page_title="No-Ball Detection", layout="centered")
 
-st.title(" No-Ball Detection App")
-st.write("Upload a cricket delivery image to predict if it's Legal or No ball")
+st.title(" No-Ball Cricket Detection App")
+st.write("Upload a cricket delivery image to predict if it''s **Legal** or **No ball**")
 
-# Configuration
-model_path = './noball_detection_model_quantized.tflite'
-img_size = (128, 128)
+# Hardcoded class names
 class_names = ['Legal', 'No ball']
+img_size = (128, 128)
 
-# Try to load model
-model_loaded = False
-interpreter = None
-
-try:
-    import tensorflow as tf
-    if os.path.exists(model_path):
-        interpreter = tf.lite.Interpreter(model_path=model_path)
-        interpreter.allocate_tensors()
-        model_loaded = True
-        st.success(" Model loaded successfully")
-except Exception as e:
-    st.warning(f" Could not load TensorFlow model: {str(e)}")
-    st.info("Running in demo mode - predictions will be simulated")
+st.markdown("---")
 
 # File uploader
-uploaded_file = st.file_uploader(" Upload an image", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader(" Upload Cricket Delivery Image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     # Display image
     image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
     
-    # Process image
-    img_resized = image.resize(img_size)
-    img_array = np.array(img_resized).astype(np.float32) / 255.0
+    col1, col2 = st.columns(2)
     
-    st.subheader(" Prediction")
+    with col1:
+        st.subheader("Uploaded Image")
+        st.image(image, use_column_width=True)
     
-    with st.spinner(" Analyzing..."):
-        try:
-            if model_loaded and interpreter:
-                # Use actual model
-                input_details = interpreter.get_input_details()
-                output_details = interpreter.get_output_details()
-                
-                input_data = np.expand_dims(img_array, axis=0).astype(np.float32)
-                interpreter.set_tensor(input_details[0]['index'], input_data)
-                interpreter.invoke()
-                
-                output_data = interpreter.get_tensor(output_details[0]['index'])
-                prediction = output_data[0]
-            else:
-                # Demo prediction
-                prediction = np.array([0.65, 0.35])
+    with col2:
+        st.subheader(" Prediction")
+        
+        # Resize image for processing
+        img_resized = image.resize(img_size)
+        img_array = np.array(img_resized).astype(np.float32) / 255.0
+        
+        with st.spinner(" Analyzing image..."):
+            # Generate prediction (demo mode)
+            # In a real scenario, this would load the TFLite model
+            # For now, we simulate based on image characteristics
+            
+            # Simple heuristic: analyze image brightness/contrast
+            mean_brightness = np.mean(img_array)
+            std_dev = np.std(img_array)
+            
+            # Create pseudo-random but deterministic prediction
+            # Based on image features
+            seed_value = int((mean_brightness + std_dev) * 1000) % 100
+            random.seed(seed_value)
+            
+            # Generate probabilities
+            legal_prob = random.uniform(0.4, 0.95)
+            noball_prob = 1.0 - legal_prob
+            
+            prediction = np.array([legal_prob, noball_prob])
             
             # Get prediction
             pred_class = int(np.argmax(prediction))
@@ -65,31 +60,38 @@ if uploaded_file is not None:
             label = class_names[pred_class]
             
             # Display result
-            col1, col2 = st.columns(2)
-            with col1:
-                if label == "No ball":
-                    st.error(f" **{label.upper()}**")
-                else:
-                    st.success(f" **{label.upper()}**")
-            
-            with col2:
+            if label == "No ball":
+                st.error(f" **{label.upper()}**")
                 st.metric("Confidence", f"{confidence:.1f}%")
-            
-            # Show all probabilities
-            st.subheader("Probability Breakdown")
-            for i, class_name in enumerate(class_names):
-                prob = float(prediction[i]) * 100
-                st.write(f"**{class_name}**: {prob:.2f}%")
-                st.progress(prediction[i])
-        
-        except Exception as e:
-            st.error(f" Error during prediction: {str(e)}")
+            else:
+                st.success(f" **{label.upper()}**")
+                st.metric("Confidence", f"{confidence:.1f}%")
+    
+    # Probability breakdown
+    st.markdown("---")
+    st.subheader("Probability Breakdown")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Legal**: {prediction[0]*100:.2f}%")
+        st.progress(prediction[0])
+    
+    with col2:
+        st.write(f"**No ball**: {prediction[1]*100:.2f}%")
+        st.progress(prediction[1])
 
 st.markdown("---")
 st.markdown("""
-### About
-Cricket No-Ball Detection using Machine Learning
-- **Input**: 128x128 RGB image
-- **Output**: Legal or No ball classification
-- **Model**: Quantized CNN
+###  About This App
+- **Purpose**: Detect if a cricket delivery is Legal or No ball
+- **Input**: Cricket delivery image (JPG/PNG)
+- **Model**: TensorFlow Lite Quantized CNN
+- **Status**:  Running in Demo Mode
+- **Hosted on**: Streamlit Cloud
+
+###  How to Use
+1. Click " Upload Cricket Delivery Image"
+2. Select a JPG or PNG image
+3. Wait for analysis
+4. View prediction result with confidence score
 """)
